@@ -25,11 +25,11 @@ except ImportError:
 # ─────────────────────────────────────────────
 # GLOBAL CONFIGURATION
 # ─────────────────────────────────────────────
-POPULATION_SIZE  = 15     # Number of individuals in each generation
-NUM_GENERATIONS  = 10     # Total generations to evolve
+POPULATION_SIZE  = 5     # Pop size in each generation
+NUM_GENERATIONS  = 50     # bassically just iterations allotted to evolve
 MUTATION_RATE    = 0.15   # Probability of mutating each locking point
 CROSSOVER_RATE   = 0.7    # Probability of applying crossover vs. cloning
-KEY_LENGTH       = 4      # Number of MUX locking points to insert
+KEY_LENGTH       = 32      # Number of MUX locking points to insert
 
 SAMPLE_VERILOG = """
 module simple_adder (
@@ -340,7 +340,7 @@ def simulate_attack_once(individual: list, graph: dict, nodes: list) -> float:
 
         # Attacker guesses key_bit=1 if (a→b) looks more structural
         # attacker guesses key_bit=0 otherwise
-        noise = random.uniform(-0.05, 0.05)
+        noise = random.uniform(-0.05, 0.05)                           #lower noise make attack less random
         attacker_guess = 1 if (score_ab + noise) >= score_cd else 0
 
         if attacker_guess == key_bit:
@@ -612,8 +612,8 @@ def print_results(netlist, best_individual, best_fitness, history):
     print()
 
     verilog_out = format_locked_verilog(netlist, locked)
-    #print("── Locked Verilog ──────────────────────────────────")
-    #print(verilog_out)
+#    print("── Locked Verilog ──────────────────────────────────")
+#    print(verilog_out)
 
     return verilog_out, key
 
@@ -670,15 +670,15 @@ def main():
 
     # Parse
     netlist = parse_verilog(source)
-    #print(f"Module  : {netlist['module']}")
-    #print(f"Inputs  : {netlist['inputs']}")
-    #print(f"Outputs : {netlist['outputs']}")
-    #print(f"Wires   : {netlist['wires']}")
+#    print(f"Module  : {netlist['module']}")
+#    print(f"Inputs  : {netlist['inputs']}")
+#    print(f"Outputs : {netlist['outputs']}")
+#    print(f"Wires   : {netlist['wires']}")
     print(f"Gates   : {len(netlist['gates'])}")
 
     # Build graph
     graph, nodes = build_graph(netlist)
-    #print(f"Graph nodes: {len(nodes)}")
+#    print(f"Graph nodes: {len(nodes)}")
 
     if not nodes:
         # Fallback: use input/output/wire names directly
