@@ -37,22 +37,6 @@ Key layout (2N bits):
 Output injection:
     The flip signal Y is XOR'd into a primary output net.  With the correct
     key Y=0, so the XOR is transparent and the circuit is fully functional.
-
-Usage
------
-    python3 cas_lock.py [options] <input.v>
-
-Options:
-    -o, --output FILE       Output file (default: <input>_caslocked.v)
-    -n, --num-inputs INT    Number of primary inputs used by CAS-Lock (default: 4)
-    -p, --p-value INT       Desired output-1 count p of gcas.
-                            Controls corruptibility: higher p -> harder bypass attack.
-                            Range: 1 .. 2^N - 1  (default: N, moderate).
-    -s, --seed INT          Random seed for reproducibility (default: 42)
-    --target-output STR     Output net to inject Y into (default: first output port)
-    --key STR               Comma-separated N correct half-key bits, e.g. 1,0,1,0
-                            (the tool uses this for BOTH halves K1=K2=key).
-                            If omitted, a random key is generated.
 """
 
 import re
@@ -305,9 +289,9 @@ def verify_correct_key(gate_seq: List[str], N: int, k_half: List[int]) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
-# Verilog emitter
-# ---------------------------------------------------------------------------
+# EMIT VERILOG
+# This function is meant to take all information from our verilog module and the CAS-Lock block and
+# build the verilog for the output netlist
 
 def emit_locked_verilog(module: VerilogModule,
                          patched_insts: List[str],
@@ -327,6 +311,7 @@ def emit_locked_verilog(module: VerilogModule,
     hex_val = int(''.join(str(b) for b in correct_key_2n), 2)
     hex_str = f"0x{hex_val:0{hex_w}X}"
 
+    # Build the header comments first to include important information
     lines = []
     lines += module.header_comments
     lines += [
@@ -395,9 +380,9 @@ def emit_locked_verilog(module: VerilogModule,
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Top-level locking function
-# ---------------------------------------------------------------------------
+# TOP LEVEL LOCKING
+# Applying the CAS-lock to the module, it will find the input to lock, then build the gate sequence
+# Then it will inject it into the gate sequence
 
 def apply_cas_lock(module: VerilogModule,
                    N: int,
@@ -419,9 +404,11 @@ def apply_cas_lock(module: VerilogModule,
         raise ValueError(f"Need >= 2 primary inputs; found {len(selected)}")
     actual_N = len(selected)
 
-    # Target output
+    # For simplicity our target output is the first output port if not specified in the arguments
     if target_output is None:
         target_output = module.outputs[0] if module.outputs else None
+    # Error functions are important here because reading the netlist target_outputs 
+    # can be difficult if they are many bits (e.g. out[7:0])
     if not target_output:
         raise ValueError("No output ports found in the module.")
     if target_output not in module.outputs:
@@ -462,10 +449,9 @@ def apply_cas_lock(module: VerilogModule,
     )
 
 
-# ---------------------------------------------------------------------------
-# Key report
-# ---------------------------------------------------------------------------
-# 
+# KEY REPORT
+# This function prints a summary of the cas-lock run, it comines all important information
+# The SAT resistance is calculated as 2^N - 1 because (in theory) the attacker would have to rule out 2^N - 1 wrong keys
 
 def print_key_report(module_name, N, k_half, key_ports, correct_key_2n,
                      gate_seq, actual_p, target_output, selected_inputs):
@@ -500,9 +486,21 @@ def print_key_report(module_name, N, k_half, key_ports, correct_key_2n,
     print()
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# COMMAND LINE INTERFACE
+# Parsing our command line arguments, 
+# Usage
+#    python3 cas_lock.py [options] <input.v>
+# Options:
+#    -o, --output FILE       Output file (default: <input>_caslocked.v)
+#    -n, --num-inputs INT    Number of primary inputs used by CAS-Lock (default: 4)
+#    -p, --p-value INT       Desired output-1 count p of gcas.
+#                            Controls corruptibility: higher p -> harder bypass attack.
+#                            Range: 1 .. 2^N - 1  (default: N, moderate).
+#    -s, --seed INT          Random seed for reproducibility (default: 42)
+#    --target-output STR     Output net to inject Y into (default: first output port)
+#    --key STR               Comma-separated N correct half-key bits, e.g. 1,0,1,0
+#                            (the tool uses this for BOTH halves K1=K2=key).
+#                            If omitted, a random key is generated.
 
 def parse_args():
     ap = argparse.ArgumentParser(
@@ -519,20 +517,28 @@ def parse_args():
                     help="N comma-separated half-key bits (K1=K2=key)")
     return ap.parse_args()
 
+# MAIN FUNCTION
+# This is the main function that runs the whole script
+# See it as a timeline of the script running,
+# parsing > reading > parsing verilog > building cas-lock > emitting verilog > printing report > writing output
 
 def main():
+    # Create our arguments
     args = parse_args()
     rng  = random.Random(args.seed)
 
+    # Add a print statement for the user and for debugging purposes
     print(f"[CAS-Lock] Reading {args.input} ...")
     with open(args.input) as f:
         text = f.read()
 
+    # Now we parse the verilog file to create the VerilogModule dataclass
     module = parse_verilog(text)
     print(f"[CAS-Lock] Parsed module '{module.name}': "
           f"{len(module.inputs)} inputs, {len(module.outputs)} outputs, "
           f"{len(module.instances)} instances")
 
+    # Determine the number of inputs because it tells us the maximum key size
     N = args.num_inputs
     if N > len(module.inputs):
         print(f"[CAS-Lock] WARNING: N={N} > available inputs; reducing to {len(module.inputs)}")
@@ -541,8 +547,11 @@ def main():
         print("[CAS-Lock] ERROR: need at least 2 inputs.")
         sys.exit(1)
 
+    # Our desired p-value is equal to N if not given by the user
     target_p = args.p_value if args.p_value is not None else N
 
+    # Half-key bits (K1=K2) for the correct key
+    # Generate a random key if one is not provided
     k_half = None
     if args.key:
         k_half = [int(b.strip()) for b in args.key.split(',')]
@@ -550,6 +559,7 @@ def main():
             print(f"[CAS-Lock] ERROR: --key must have {N} bits, got {len(k_half)}")
             sys.exit(1)
 
+    # Call our apply_cas_lock function with all of our arguments
     print(f"[CAS-Lock] Applying CAS-Lock (N={N}, target p~{target_p}) ...")
     locked = apply_cas_lock(module, N, target_p, k_half, args.target_output, rng)
 
@@ -573,9 +583,11 @@ def main():
     final_N    = len(final_inps) if final_inps and final_inps[0] else N
     final_half = final_key[:final_N] if final_key else []
 
+    # Call the print_key_report function for a summary
     print_key_report(module.name, final_N, final_half, final_ports,
                      final_key, final_gates, final_p, raw_tgt, final_inps)
 
+    # Write our locked netlist to the output file
     out_path = args.output or args.input.replace('.v', '_caslocked.v')
     with open(out_path, 'w') as f:
         f.write(locked)
