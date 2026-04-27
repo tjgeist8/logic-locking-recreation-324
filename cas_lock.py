@@ -37,22 +37,6 @@ Key layout (2N bits):
 Output injection:
     The flip signal Y is XOR'd into a primary output net.  With the correct
     key Y=0, so the XOR is transparent and the circuit is fully functional.
-
-Usage
------
-    python cas_lock.py [options] <input.v>
-
-Options:
-    -o, --output FILE       Output file (default: <input>_caslocked.v)
-    -n, --num-inputs INT    Number of primary inputs used by CAS-Lock (default: 4)
-    -p, --p-value INT       Desired output-1 count p of gcas.
-                            Controls corruptibility: higher p -> harder bypass attack.
-                            Range: 1 .. 2^N - 1  (default: N, moderate).
-    -s, --seed INT          Random seed for reproducibility (default: 42)
-    --target-output STR     Output net to inject Y into (default: first output port)
-    --key STR               Comma-separated N correct half-key bits, e.g. 1,0,1,0
-                            (the tool uses this for BOTH halves K1=K2=key).
-                            If omitted, a random key is generated.
 """
 
 import re
@@ -78,69 +62,90 @@ class VerilogModule:
     bus_wires: List[Tuple[str,int,int]] = field(default_factory=list)
 
 
-# ---------------------------------------------------------------------------
-# Verilog parser  (gate-level structural netlist)
-# ---------------------------------------------------------------------------
+# VERILOG PARSER
+# We use regex parsing (re)
+# We also need to ignore comments which come in both // and /* */ forms.
+# Code for the parser was assisted by Claude's Sonnet 4.6 Model (Mostly the usage of regex because I was unfamiliar with the tool)
 
-_KW = frozenset(['wire','input','output','inout','reg','assign',
+# We have to parse through the module, which means we need to ignore certain keywords
+keywordList = frozenset(['wire','input','output','inout','reg','assign',
                  'always','initial','parameter','localparam'])
 
+# our parse verilog function will return a VerilogModule dataclass instance, 
+# which contains the name of the module, lists of inputs, outputs, wires, instances, header comments, and bus wires.
 def parse_verilog(text: str) -> VerilogModule:
-    mod = VerilogModule(name="")
-    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
-    mod.header_comments = [ln for ln in text.splitlines() if ln.strip().startswith('//')]
+    mod = VerilogModule(name="") # Start with an empty name
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL) # Use regex to subsitute /* */ comments with empty text
+    # We can actually save header_comments by storing them inside our VerilogModule dataclass
+    mod.header_comments = [ln for ln in text.splitlines() if ln.strip().startswith('//')] #loop to find lines that start with //
 
+    # Now we look for the module declaration
     m = re.search(r'\bmodule\s+(\w+)\s*\(', text)
     if not m:
         raise ValueError("Cannot find 'module' declaration")
+    # Since module names include letters, digits, and other characters, we can use regex to capture it without giving warnings
     mod.name = m.group(1)
 
+    # Pretty much repeating the same process for input/output
     for m in re.finditer(r'\b(input|output)\s+(?:\[\d+:\d+\]\s+)?(\w+)\s*;', text):
         (mod.inputs if m.group(1) == 'input' else mod.outputs).append(m.group(2))
 
+    # Wires now, some netlists include bus wires, so we include them too
     for m in re.finditer(r'\bwire\s+(?:\[(\d+):(\d+)\]\s+)?(\w+)\s*;', text):
         if m.group(1) is not None:
             mod.bus_wires.append((m.group(3), int(m.group(1)), int(m.group(2))))
         else:
             mod.wires.append(m.group(3))
 
+    # Create a variable body_m to get all of our instances
     body_m = re.search(r'\bmodule\b.*?\(.*?\);(.*?)\bendmodule\b', text, re.DOTALL)
     if not body_m:
         raise ValueError("Cannot find module body")
 
+    # Look for instances, ignoring those keywords from earlier. 
+    # Regex should capture the instance, module, and ports
+    # Take all that information and put it in our dataclass.
     for m in re.finditer(r'(\w+)\s+(\w+)\s*\((.*?)\)\s*;', body_m.group(1), re.DOTALL):
-        if m.group(1) not in _KW:
+        if m.group(1) not in keywordList:
             mod.instances.append(m.group(0).strip())
 
     return mod
 
 
-# ---------------------------------------------------------------------------
-# Gate sequence computation
-# ---------------------------------------------------------------------------
+# GATE SEQUENCE
+# Making the gate sequence is very dependent on the p-value, which is the number of 
+# To measure the p-value we simulate the cascade for all input patterns and count how many yield a 1
+# The desired p-value is usually correlated with how many OR gates we have in the cascade,
+# so i changed the loop to start with all AND gates (p = 1) and flip gates to OR
 
 def simulate_gcas(gate_seq: List[str], N: int) -> int:
-    """Count patterns for which gcas evaluates to 1."""
     count = 0
+    # this loops for 2^N patterns, a more optimized approach is definitely possible but this should work for N < 20
     for pat in range(1 << N):
+        # Turn the pattern into a list of bits
         bits = [(pat >> i) & 1 for i in range(N)]
         val = bits[0]
         for i, g in enumerate(gate_seq):
+            # Our cascade is made of AND and OR gates, so we use bitwise operations
+            # AND = &, OR = |
             val = (val & bits[i+1]) if g == 'AND' else (val | bits[i+1])
         count += val
     return count
 
-
+# We call this function just before building the CAS-Lock block in our netlist, we use it
+# to create the list of gates that are needed to secure the lock
+# corruptability goes up with the p-value (more OR gates)
 def build_gate_sequence(N: int, target_p: int) -> List[str]:
-    """
-    Build a gate sequence of length N-1 targeting output-1 count >= target_p.
-    Strategy: start all-AND (p=1), flip gates to OR from the output end.
-    """
+    # start with all AND gates
     gates = ['AND'] * (N - 1)
+    # This loop iterates from the end of the sequence to the beginning
     for i in range(N - 2, -1, -1):
+        # If we reach the target p-value, keep it as AND,
+        # If we don't, flip it to OR and check again
         if simulate_gcas(gates, N) >= target_p:
             break
         gates[i] = 'OR'
+    # This gate sequence can get our p-value reasonably close to the target
     return gates
 
 
@@ -149,15 +154,6 @@ def build_gate_sequence(N: int, target_p: int) -> List[str]:
 # ---------------------------------------------------------------------------
 
 class CASLockBuilder:
-    """
-    Emits NanGate-compatible standard-cell Verilog for a CAS-Lock block.
-
-    Correct key construction:  K1 = K2 = k_half
-        L  = X XOR k_half  (same L for both halves)
-        gcas(L)     = cascaded AND/OR of L bits
-        gcas_bar(L) = NOT( gcas(L) )      [INV on final cascade output]
-        Y = gcas AND gcas_bar = gcas AND NOT(gcas) = 0  for ALL inputs  OK
-    """
 
     def __init__(self, selected_inputs: List[str],
                  gate_seq: List[str], k_half: List[int]):
@@ -181,7 +177,7 @@ class CASLockBuilder:
         return name
 
     def _emit(self, cell: str, inst: str, **ports) -> None:
-        conn = "\n".join(f"    .{p}({n})" for p, n in ports.items())
+        conn = ",\n".join(f"    .{p}({n})" for p, n in ports.items())
         self.new_insts.append(f"  {cell} {inst} (\n{conn}\n  );")
 
     def _xor_key(self, in_net: str, key_port: str) -> str:
@@ -293,9 +289,9 @@ def verify_correct_key(gate_seq: List[str], N: int, k_half: List[int]) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
-# Verilog emitter
-# ---------------------------------------------------------------------------
+# EMIT VERILOG
+# This function is meant to take all information from our verilog module and the CAS-Lock block and
+# build the verilog for the output netlist
 
 def emit_locked_verilog(module: VerilogModule,
                          patched_insts: List[str],
@@ -315,6 +311,7 @@ def emit_locked_verilog(module: VerilogModule,
     hex_val = int(''.join(str(b) for b in correct_key_2n), 2)
     hex_str = f"0x{hex_val:0{hex_w}X}"
 
+    # Build the header comments first to include important information
     lines = []
     lines += module.header_comments
     lines += [
@@ -383,9 +380,9 @@ def emit_locked_verilog(module: VerilogModule,
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Top-level locking function
-# ---------------------------------------------------------------------------
+# TOP LEVEL LOCKING
+# Applying the CAS-lock to the module, it will find the input to lock, then build the gate sequence
+# Then it will inject it into the gate sequence
 
 def apply_cas_lock(module: VerilogModule,
                    N: int,
@@ -407,9 +404,11 @@ def apply_cas_lock(module: VerilogModule,
         raise ValueError(f"Need >= 2 primary inputs; found {len(selected)}")
     actual_N = len(selected)
 
-    # Target output
+    # For simplicity our target output is the first output port if not specified in the arguments
     if target_output is None:
         target_output = module.outputs[0] if module.outputs else None
+    # Error functions are important here because reading the netlist target_outputs 
+    # can be difficult if they are many bits (e.g. out[7:0])
     if not target_output:
         raise ValueError("No output ports found in the module.")
     if target_output not in module.outputs:
@@ -450,17 +449,17 @@ def apply_cas_lock(module: VerilogModule,
     )
 
 
-# ---------------------------------------------------------------------------
-# Key report
-# ---------------------------------------------------------------------------
+# KEY REPORT
+# This function prints a summary of the cas-lock run, it comines all important information
+# The SAT resistance is calculated as 2^N - 1 because (in theory) the attacker would have to rule out 2^N - 1 wrong keys
 
 def print_key_report(module_name, N, k_half, key_ports, correct_key_2n,
                      gate_seq, actual_p, target_output, selected_inputs):
-    W = 64
+
     print()
-    print("=" * W)
-    print("  CAS-Lock Applied Successfully")
-    print("=" * W)
+    print("=" * 64)
+    print("  CAS-Lock Applied -- Summary Report")
+    print("=" * 64)
     print(f"  Module            : {module_name}")
     print(f"  CAS inputs (N)    : {N}  ->  key size 2N = {2*N} bits")
     print(f"  CAS input nets    : {', '.join(selected_inputs)}")
@@ -483,13 +482,25 @@ def print_key_report(module_name, N, k_half, key_ports, correct_key_2n,
         print(f"  {port:<22s}  {bit}             {role}")
     print()
     print(f"  SAT resistance : 2^N - 1 = {(1<<N)-1:,} forced iterations (brute force)")
-    print("=" * W)
+    print("=" * 64)
     print()
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# COMMAND LINE INTERFACE
+# Parsing our command line arguments, 
+# Usage
+#    python3 cas_lock.py [options] <input.v>
+# Options:
+#    -o, --output FILE       Output file (default: <input>_caslocked.v)
+#    -n, --num-inputs INT    Number of primary inputs used by CAS-Lock (default: 4)
+#    -p, --p-value INT       Desired output-1 count p of gcas.
+#                            Controls corruptibility: higher p -> harder bypass attack.
+#                            Range: 1 .. 2^N - 1  (default: N, moderate).
+#    -s, --seed INT          Random seed for reproducibility (default: 42)
+#    --target-output STR     Output net to inject Y into (default: first output port)
+#    --key STR               Comma-separated N correct half-key bits, e.g. 1,0,1,0
+#                            (the tool uses this for BOTH halves K1=K2=key).
+#                            If omitted, a random key is generated.
 
 def parse_args():
     ap = argparse.ArgumentParser(
@@ -506,20 +517,28 @@ def parse_args():
                     help="N comma-separated half-key bits (K1=K2=key)")
     return ap.parse_args()
 
+# MAIN FUNCTION
+# This is the main function that runs the whole script
+# See it as a timeline of the script running,
+# parsing > reading > parsing verilog > building cas-lock > emitting verilog > printing report > writing output
 
 def main():
+    # Create our arguments
     args = parse_args()
     rng  = random.Random(args.seed)
 
+    # Add a print statement for the user and for debugging purposes
     print(f"[CAS-Lock] Reading {args.input} ...")
     with open(args.input) as f:
         text = f.read()
 
+    # Now we parse the verilog file to create the VerilogModule dataclass
     module = parse_verilog(text)
     print(f"[CAS-Lock] Parsed module '{module.name}': "
           f"{len(module.inputs)} inputs, {len(module.outputs)} outputs, "
           f"{len(module.instances)} instances")
 
+    # Determine the number of inputs because it tells us the maximum key size
     N = args.num_inputs
     if N > len(module.inputs):
         print(f"[CAS-Lock] WARNING: N={N} > available inputs; reducing to {len(module.inputs)}")
@@ -528,8 +547,11 @@ def main():
         print("[CAS-Lock] ERROR: need at least 2 inputs.")
         sys.exit(1)
 
+    # Our desired p-value is equal to N if not given by the user
     target_p = args.p_value if args.p_value is not None else N
 
+    # Half-key bits (K1=K2) for the correct key
+    # Generate a random key if one is not provided
     k_half = None
     if args.key:
         k_half = [int(b.strip()) for b in args.key.split(',')]
@@ -537,6 +559,7 @@ def main():
             print(f"[CAS-Lock] ERROR: --key must have {N} bits, got {len(k_half)}")
             sys.exit(1)
 
+    # Call our apply_cas_lock function with all of our arguments
     print(f"[CAS-Lock] Applying CAS-Lock (N={N}, target p~{target_p}) ...")
     locked = apply_cas_lock(module, N, target_p, k_half, args.target_output, rng)
 
@@ -560,9 +583,11 @@ def main():
     final_N    = len(final_inps) if final_inps and final_inps[0] else N
     final_half = final_key[:final_N] if final_key else []
 
+    # Call the print_key_report function for a summary
     print_key_report(module.name, final_N, final_half, final_ports,
                      final_key, final_gates, final_p, raw_tgt, final_inps)
 
+    # Write our locked netlist to the output file
     out_path = args.output or args.input.replace('.v', '_caslocked.v')
     with open(out_path, 'w') as f:
         f.write(locked)
