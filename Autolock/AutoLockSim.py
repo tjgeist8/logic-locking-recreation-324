@@ -1,11 +1,4 @@
 """
-AutoLock-Style Evolutionary Logic Locking Simulator
-=====================================================
-A simplified prototype capturing the core ideas of the AutoLock paper:
-  - MUX-based key-controlled locking points
-  - Genetic Algorithm to evolve secure locking configurations
-  - Simulated structural attack to evaluate security
-
 Usage:
     python autolock_sim.py [verilog_file]
     If no file is provided, a built-in sample netlist is used.
@@ -32,11 +25,11 @@ except ImportError:
 # ─────────────────────────────────────────────
 # GLOBAL CONFIGURATION
 # ─────────────────────────────────────────────
-POPULATION_SIZE  = 20     # Number of individuals in each generation
-NUM_GENERATIONS  = 50     # Total generations to evolve
+POPULATION_SIZE  = 15     # Number of individuals in each generation
+NUM_GENERATIONS  = 10     # Total generations to evolve
 MUTATION_RATE    = 0.15   # Probability of mutating each locking point
 CROSSOVER_RATE   = 0.7    # Probability of applying crossover vs. cloning
-KEY_LENGTH       = 8      # Number of MUX locking points to insert
+KEY_LENGTH       = 4      # Number of MUX locking points to insert
 
 SAMPLE_VERILOG = """
 module simple_adder (
