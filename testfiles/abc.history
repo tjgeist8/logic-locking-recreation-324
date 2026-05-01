@@ -1,0 +1,3 @@
+source -s abc.rc
+read_bench c432.bench 
+write_verilog c432.v

@@ -25,7 +25,7 @@ except ImportError:
 # ─────────────────────────────────────────────
 # GLOBAL CONFIGURATION
 # ─────────────────────────────────────────────
-POPULATION_SIZE  = 5     # Pop size in each generation
+POPULATION_SIZE  = 10     # Pop size in each generation
 NUM_GENERATIONS  = 50     # bassically just iterations allotted to evolve
 MUTATION_RATE    = 0.15   # Probability of mutating each locking point
 CROSSOVER_RATE   = 0.7    # Probability of applying crossover vs. cloning
@@ -132,7 +132,7 @@ def parse_verilog(source: str) -> dict:
             continue
 
         ports = {}
-        for pm in re.finditer(r'\.(\w+)\s*\(\s*([\w\[\]]+)\s*\)', port_body):
+        for pm in re.finditer(r'\.(\w+)\s*\(\s*([^)]+?)\s*\)', port_body):
             ports[pm.group(1)] = pm.group(2)
 
         if not ports:
