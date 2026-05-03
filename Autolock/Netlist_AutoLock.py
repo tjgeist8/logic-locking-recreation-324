@@ -668,14 +668,14 @@ def print_results(netlist, best_individual, best_fitness, history):
 
 def save_outputs(verilog_out, key, history):
 
-    with open("best_locked_circuit.v", "w") as f:
+    with open("best_locked_netlist.v", "w") as f:
         f.write(verilog_out)
-    print("\nSaved: best_locked_circuit.v")
+    print("\nSaved: best_locked_netlist.v")
 
-    with open("best_key.txt", "w") as f:
+    with open("best_netlist_key.txt", "w") as f:
         f.write("Correct key (binary): " + ''.join(str(b) for b in key) + "\n")
         f.write("Key bits: " + str(key) + "\n")
-    print("Saved: best_key.txt")
+    print("Saved: best_netlist_key.txt")
 
     if HAS_MATPLOTLIB and history:
         gens  = range(1, len(history) + 1)
@@ -691,9 +691,9 @@ def save_outputs(verilog_out, key, history):
         plt.title('AutoLock GA Fitness')
         plt.legend()
         plt.tight_layout()
-        plt.savefig("fitness_history.png", dpi=120)
+        plt.savefig("netlist_fitness_history.png", dpi=120)
         plt.close()
-        print("Saved: fitness_history.png")
+        print("Saved: netlist_fitness_history.png")
 
 
 # ─────────────────────────────────────────────
