@@ -3,17 +3,19 @@
 //  CAS-Lock applied by cas_lock.py
 //  Reference: Shakya et al., IACR TCHES 2020, pp. 175-202
 // ------------------------------------------------------------
-//  N (CAS-Lock inputs)  : 11
-//  Key size (2N bits)   : 22
-//  Gate sequence (gcas) : AND -> AND -> AND -> AND -> AND -> AND -> AND -> AND -> AND -> OR
-//  p-value (gcas)       : 1025  / 2^11 = 2048
-//  Corruptibility       : 50.0%
-//  CAS-Lock input nets  : P1_IR_REG_24__SCAN_IN, SI_7_, P1_DATAO_REG_11__SCAN_IN, P1_ADDR_REG_19__SCAN_IN, P1_REG2_REG_10__SCAN_IN, P1_D_REG_20__SCAN_IN, P1_IR_REG_14__SCAN_IN, P2_DATAO_REG_7__SCAN_IN, P2_REG1_REG_1__SCAN_IN, SI_0_, SI_2_
+//  N (CAS-Lock inputs)  : 12
+//  Key size (2N bits)   : 24
+//  Gate sequence (gcas) : AND -> AND -> AND -> AND -> AND -> AND -> AND -> AND -> AND -> AND -> AND
+//  p-value (gcas)       : 1  / 2^12 = 4096
+//  Corruptibility       : 0.0%
+//  CAS-Lock input nets  : P1_IR_REG_24__SCAN_IN, SI_7_, P1_DATAO_REG_11__SCAN_IN, P1_ADDR_REG_19__SCAN_IN, P1_REG2_REG_10__SCAN_IN, P1_D_REG_20__SCAN_IN, P1_IR_REG_14__SCAN_IN, P2_DATAO_REG_7__SCAN_IN, P2_REG1_REG_1__SCAN_IN, SI_0_, SI_2_, P1_IR_REG_5__SCAN_IN
 //  Target output net    : ADD_1068_U4
-//  Correct key (hex)    : 0x0167D3
-//  Correct key (bits)   : K1=[0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0]  K2=[1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1]
-//  Key port order       : keyinput0, keyinput1, keyinput2, keyinput3, keyinput4, keyinput5, keyinput6, keyinput7, keyinput8, keyinput9, keyinput10, keyinput11, keyinput12, keyinput13, keyinput14, keyinput15, keyinput16, keyinput17, keyinput18, keyinput19, keyinput20, keyinput21
-//  SAT resistance       : 2^N - 1 = 2047 iterations
+//  Observed key (hex)   : 0x99DA71
+//  k_half (internal)    : [0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1]
+//  mask                 : [1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0]
+//  Observed key (bits)  : K1=[1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1]  K2=[1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1]
+//  Key port order       : keyinput0, keyinput1, keyinput2, keyinput3, keyinput4, keyinput5, keyinput6, keyinput7, keyinput8, keyinput9, keyinput10, keyinput11, keyinput12, keyinput13, keyinput14, keyinput15, keyinput16, keyinput17, keyinput18, keyinput19, keyinput20, keyinput21, keyinput22, keyinput23
+//  SAT resistance       : 2^N - 1 = 4095 iterations
 // ============================================================
 
 module b20_C(
@@ -1072,7 +1074,9 @@ module b20_C(
   keyinput18,
   keyinput19,
   keyinput20,
-  keyinput21
+  keyinput21,
+  keyinput22,
+  keyinput23
 );
 
   // --- Original ports ---
@@ -3145,7 +3149,7 @@ module b20_C(
   output P2_U3893;
   wire P2_U3893;
 
-  // --- CAS-Lock key input ports (2N = 22 bits) ---
+  // --- CAS-Lock key input ports (2N = 24 bits) ---
   input keyinput0;
   wire keyinput0;
   input keyinput1;
@@ -3190,6 +3194,10 @@ module b20_C(
   wire keyinput20;
   input keyinput21;
   wire keyinput21;
+  input keyinput22;
+  wire keyinput22;
+  input keyinput23;
+  wire keyinput23;
 
   // --- Original internal wires ---
   wire P2_WR_REG_SCAN_IN;
@@ -10205,61 +10213,65 @@ module b20_C(
 
   // --- CAS-Lock internal wires ---
   wire _cas_prexor_ADD_1068_U4_;
-  wire _cas_w0000_xk_;
-  wire _cas_w0002_xk_;
-  wire _cas_w0004_xk_;
-  wire _cas_w0006_xk_;
-  wire _cas_w0008_xk_;
-  wire _cas_w0010_xk_;
+  wire _cas_w0000_unmask0_;
+  wire _cas_w0002_unmask3_;
+  wire _cas_w0004_unmask6_;
+  wire _cas_w0006_unmask8_;
+  wire _cas_w0008_unmask9_;
+  wire _cas_w0010_unmask10_;
   wire _cas_w0012_xk_;
   wire _cas_w0014_xk_;
   wire _cas_w0016_xk_;
   wire _cas_w0018_xk_;
   wire _cas_w0020_xk_;
-  wire _cas_w0022_g_g0_;
-  wire _cas_w0024_g_g1_;
-  wire _cas_w0026_g_g2_;
-  wire _cas_w0028_g_g3_;
-  wire _cas_w0030_g_g4_;
-  wire _cas_w0032_g_g5_;
-  wire _cas_w0034_g_g6_;
-  wire _cas_w0036_g_g7_;
-  wire _cas_w0038_g_g8_;
-  wire _cas_w0040_g_g9_;
-  wire _cas_w0042_xk_;
-  wire _cas_w0044_xk_;
-  wire _cas_w0046_xk_;
-  wire _cas_w0048_xk_;
-  wire _cas_w0050_xk_;
-  wire _cas_w0052_xk_;
-  wire _cas_w0054_xk_;
-  wire _cas_w0056_xk_;
-  wire _cas_w0058_xk_;
-  wire _cas_w0060_xk_;
-  wire _cas_w0062_xk_;
-  wire _cas_w0064_gb_preinv_;
-  wire _cas_w0066_gb_preinv_;
-  wire _cas_w0068_gb_preinv_;
-  wire _cas_w0070_gb_preinv_;
-  wire _cas_w0072_gb_preinv_;
-  wire _cas_w0074_gb_preinv_;
-  wire _cas_w0076_gb_preinv_;
-  wire _cas_w0078_gb_preinv_;
-  wire _cas_w0080_gb_preinv_;
-  wire _cas_w0082_gb_preinv_;
-  wire _cas_w0084_gb_preinv_;
-  wire _cas_w0086_gb_g0_;
-  wire _cas_w0088_gb_g1_;
-  wire _cas_w0090_gb_g2_;
-  wire _cas_w0092_gb_g3_;
-  wire _cas_w0094_gb_g4_;
-  wire _cas_w0096_gb_g5_;
-  wire _cas_w0098_gb_g6_;
-  wire _cas_w0100_gb_g7_;
-  wire _cas_w0102_gb_g8_;
-  wire _cas_w0104_gb_g9_;
-  wire _cas_w0106_gb_inv_;
-  wire _cas_w0108_Y_;
+  wire _cas_w0022_xk_;
+  wire _cas_w0024_xk_;
+  wire _cas_w0026_xk_;
+  wire _cas_w0028_xk_;
+  wire _cas_w0030_xk_;
+  wire _cas_w0032_xk_;
+  wire _cas_w0034_xk_;
+  wire _cas_w0036_g_g0_;
+  wire _cas_w0038_g_g1_;
+  wire _cas_w0040_g_g2_;
+  wire _cas_w0042_g_g3_;
+  wire _cas_w0044_g_g4_;
+  wire _cas_w0046_g_g5_;
+  wire _cas_w0048_g_g6_;
+  wire _cas_w0050_g_g7_;
+  wire _cas_w0052_g_g8_;
+  wire _cas_w0054_g_g9_;
+  wire _cas_w0056_g_g10_;
+  wire _cas_w0058_unmask12_;
+  wire _cas_w0060_unmask14_;
+  wire _cas_w0062_unmask16_;
+  wire _cas_w0064_unmask17_;
+  wire _cas_w0066_unmask22_;
+  wire _cas_w0068_xk_;
+  wire _cas_w0070_xk_;
+  wire _cas_w0072_xk_;
+  wire _cas_w0074_xk_;
+  wire _cas_w0076_xk_;
+  wire _cas_w0078_xk_;
+  wire _cas_w0080_xk_;
+  wire _cas_w0082_xk_;
+  wire _cas_w0084_xk_;
+  wire _cas_w0086_xk_;
+  wire _cas_w0088_xk_;
+  wire _cas_w0090_xk_;
+  wire _cas_w0092_gb_g0_;
+  wire _cas_w0094_gb_g1_;
+  wire _cas_w0096_gb_g2_;
+  wire _cas_w0098_gb_g3_;
+  wire _cas_w0100_gb_g4_;
+  wire _cas_w0102_gb_g5_;
+  wire _cas_w0104_gb_g6_;
+  wire _cas_w0106_gb_g7_;
+  wire _cas_w0108_gb_g8_;
+  wire _cas_w0110_gb_g9_;
+  wire _cas_w0112_gb_g10_;
+  wire _cas_w0114_gb_inv_;
+  wire _cas_w0116_Y_;
 
   // --- Original gate instances (with output injection) ---
   INV_X1 _05972_ (
@@ -43906,273 +43918,293 @@ module b20_C(
   );
     XOR2_X1 _cas_out_xor_ (
     .A(_cas_prexor_ADD_1068_U4_),
-    .B(_cas_w0108_Y_),
+    .B(_cas_w0116_Y_),
     .Z(ADD_1068_U4)
   );
 
   // --- CAS-Lock gate instances ---
-  XOR2_X1 _cas_i0001_xor_ (
-    .A(P1_IR_REG_24__SCAN_IN),
-    .B(keyinput0),
-    .Z(_cas_w0000_xk_)
+  INV_X1 _cas_i0001_unmask0_ (
+    .A(keyinput0),
+    .ZN(_cas_w0000_unmask0_)
   );
-  XOR2_X1 _cas_i0003_xor_ (
-    .A(SI_7_),
-    .B(keyinput1),
-    .Z(_cas_w0002_xk_)
+  INV_X1 _cas_i0003_unmask3_ (
+    .A(keyinput3),
+    .ZN(_cas_w0002_unmask3_)
   );
-  XOR2_X1 _cas_i0005_xor_ (
-    .A(P1_DATAO_REG_11__SCAN_IN),
-    .B(keyinput2),
-    .Z(_cas_w0004_xk_)
+  INV_X1 _cas_i0005_unmask6_ (
+    .A(keyinput6),
+    .ZN(_cas_w0004_unmask6_)
   );
-  XOR2_X1 _cas_i0007_xor_ (
-    .A(P1_ADDR_REG_19__SCAN_IN),
-    .B(keyinput3),
-    .Z(_cas_w0006_xk_)
+  INV_X1 _cas_i0007_unmask8_ (
+    .A(keyinput8),
+    .ZN(_cas_w0006_unmask8_)
   );
-  XOR2_X1 _cas_i0009_xor_ (
-    .A(P1_REG2_REG_10__SCAN_IN),
-    .B(keyinput4),
-    .Z(_cas_w0008_xk_)
+  INV_X1 _cas_i0009_unmask9_ (
+    .A(keyinput9),
+    .ZN(_cas_w0008_unmask9_)
   );
-  XOR2_X1 _cas_i0011_xor_ (
-    .A(P1_D_REG_20__SCAN_IN),
-    .B(keyinput5),
-    .Z(_cas_w0010_xk_)
+  INV_X1 _cas_i0011_unmask10_ (
+    .A(keyinput10),
+    .ZN(_cas_w0010_unmask10_)
   );
   XOR2_X1 _cas_i0013_xor_ (
-    .A(P1_IR_REG_14__SCAN_IN),
-    .B(keyinput6),
+    .A(P1_IR_REG_24__SCAN_IN),
+    .B(_cas_w0000_unmask0_),
     .Z(_cas_w0012_xk_)
   );
   XOR2_X1 _cas_i0015_xor_ (
-    .A(P2_DATAO_REG_7__SCAN_IN),
-    .B(keyinput7),
+    .A(SI_7_),
+    .B(keyinput1),
     .Z(_cas_w0014_xk_)
   );
   XOR2_X1 _cas_i0017_xor_ (
-    .A(P2_REG1_REG_1__SCAN_IN),
-    .B(keyinput8),
+    .A(P1_DATAO_REG_11__SCAN_IN),
+    .B(keyinput2),
     .Z(_cas_w0016_xk_)
   );
   XOR2_X1 _cas_i0019_xor_ (
-    .A(SI_0_),
-    .B(keyinput9),
+    .A(P1_ADDR_REG_19__SCAN_IN),
+    .B(_cas_w0002_unmask3_),
     .Z(_cas_w0018_xk_)
   );
   XOR2_X1 _cas_i0021_xor_ (
-    .A(SI_2_),
-    .B(keyinput10),
+    .A(P1_REG2_REG_10__SCAN_IN),
+    .B(keyinput4),
     .Z(_cas_w0020_xk_)
   );
-  AND2_X1 _cas_i0023_gg0_ (
-    .A1(_cas_w0000_xk_),
-    .A2(_cas_w0002_xk_),
-    .ZN(_cas_w0022_g_g0_)
-  );
-  AND2_X1 _cas_i0025_gg1_ (
-    .A1(_cas_w0022_g_g0_),
-    .A2(_cas_w0004_xk_),
-    .ZN(_cas_w0024_g_g1_)
-  );
-  AND2_X1 _cas_i0027_gg2_ (
-    .A1(_cas_w0024_g_g1_),
-    .A2(_cas_w0006_xk_),
-    .ZN(_cas_w0026_g_g2_)
-  );
-  AND2_X1 _cas_i0029_gg3_ (
-    .A1(_cas_w0026_g_g2_),
-    .A2(_cas_w0008_xk_),
-    .ZN(_cas_w0028_g_g3_)
-  );
-  AND2_X1 _cas_i0031_gg4_ (
-    .A1(_cas_w0028_g_g3_),
-    .A2(_cas_w0010_xk_),
-    .ZN(_cas_w0030_g_g4_)
-  );
-  AND2_X1 _cas_i0033_gg5_ (
-    .A1(_cas_w0030_g_g4_),
-    .A2(_cas_w0012_xk_),
-    .ZN(_cas_w0032_g_g5_)
-  );
-  AND2_X1 _cas_i0035_gg6_ (
-    .A1(_cas_w0032_g_g5_),
-    .A2(_cas_w0014_xk_),
-    .ZN(_cas_w0034_g_g6_)
-  );
-  AND2_X1 _cas_i0037_gg7_ (
-    .A1(_cas_w0034_g_g6_),
-    .A2(_cas_w0016_xk_),
-    .ZN(_cas_w0036_g_g7_)
-  );
-  AND2_X1 _cas_i0039_gg8_ (
-    .A1(_cas_w0036_g_g7_),
-    .A2(_cas_w0018_xk_),
-    .ZN(_cas_w0038_g_g8_)
-  );
-  OR2_X1 _cas_i0041_gg9_ (
-    .A1(_cas_w0038_g_g8_),
-    .A2(_cas_w0020_xk_),
-    .ZN(_cas_w0040_g_g9_)
-  );
-  XOR2_X1 _cas_i0043_xor_ (
-    .A(P1_IR_REG_24__SCAN_IN),
-    .B(keyinput11),
-    .Z(_cas_w0042_xk_)
-  );
-  XOR2_X1 _cas_i0045_xor_ (
-    .A(SI_7_),
-    .B(keyinput12),
-    .Z(_cas_w0044_xk_)
-  );
-  XOR2_X1 _cas_i0047_xor_ (
-    .A(P1_DATAO_REG_11__SCAN_IN),
-    .B(keyinput13),
-    .Z(_cas_w0046_xk_)
-  );
-  XOR2_X1 _cas_i0049_xor_ (
-    .A(P1_ADDR_REG_19__SCAN_IN),
-    .B(keyinput14),
-    .Z(_cas_w0048_xk_)
-  );
-  XOR2_X1 _cas_i0051_xor_ (
-    .A(P1_REG2_REG_10__SCAN_IN),
-    .B(keyinput15),
-    .Z(_cas_w0050_xk_)
-  );
-  XOR2_X1 _cas_i0053_xor_ (
+  XOR2_X1 _cas_i0023_xor_ (
     .A(P1_D_REG_20__SCAN_IN),
-    .B(keyinput16),
-    .Z(_cas_w0052_xk_)
+    .B(keyinput5),
+    .Z(_cas_w0022_xk_)
   );
-  XOR2_X1 _cas_i0055_xor_ (
+  XOR2_X1 _cas_i0025_xor_ (
     .A(P1_IR_REG_14__SCAN_IN),
-    .B(keyinput17),
-    .Z(_cas_w0054_xk_)
+    .B(_cas_w0004_unmask6_),
+    .Z(_cas_w0024_xk_)
   );
-  XOR2_X1 _cas_i0057_xor_ (
+  XOR2_X1 _cas_i0027_xor_ (
     .A(P2_DATAO_REG_7__SCAN_IN),
-    .B(keyinput18),
-    .Z(_cas_w0056_xk_)
+    .B(keyinput7),
+    .Z(_cas_w0026_xk_)
   );
-  XOR2_X1 _cas_i0059_xor_ (
+  XOR2_X1 _cas_i0029_xor_ (
     .A(P2_REG1_REG_1__SCAN_IN),
-    .B(keyinput19),
-    .Z(_cas_w0058_xk_)
+    .B(_cas_w0006_unmask8_),
+    .Z(_cas_w0028_xk_)
   );
-  XOR2_X1 _cas_i0061_xor_ (
+  XOR2_X1 _cas_i0031_xor_ (
     .A(SI_0_),
-    .B(keyinput20),
-    .Z(_cas_w0060_xk_)
+    .B(_cas_w0008_unmask9_),
+    .Z(_cas_w0030_xk_)
   );
-  XOR2_X1 _cas_i0063_xor_ (
+  XOR2_X1 _cas_i0033_xor_ (
     .A(SI_2_),
+    .B(_cas_w0010_unmask10_),
+    .Z(_cas_w0032_xk_)
+  );
+  XOR2_X1 _cas_i0035_xor_ (
+    .A(P1_IR_REG_5__SCAN_IN),
+    .B(keyinput11),
+    .Z(_cas_w0034_xk_)
+  );
+  AND2_X1 _cas_i0037_gg0_ (
+    .A1(_cas_w0012_xk_),
+    .A2(_cas_w0014_xk_),
+    .ZN(_cas_w0036_g_g0_)
+  );
+  AND2_X1 _cas_i0039_gg1_ (
+    .A1(_cas_w0036_g_g0_),
+    .A2(_cas_w0016_xk_),
+    .ZN(_cas_w0038_g_g1_)
+  );
+  AND2_X1 _cas_i0041_gg2_ (
+    .A1(_cas_w0038_g_g1_),
+    .A2(_cas_w0018_xk_),
+    .ZN(_cas_w0040_g_g2_)
+  );
+  AND2_X1 _cas_i0043_gg3_ (
+    .A1(_cas_w0040_g_g2_),
+    .A2(_cas_w0020_xk_),
+    .ZN(_cas_w0042_g_g3_)
+  );
+  AND2_X1 _cas_i0045_gg4_ (
+    .A1(_cas_w0042_g_g3_),
+    .A2(_cas_w0022_xk_),
+    .ZN(_cas_w0044_g_g4_)
+  );
+  AND2_X1 _cas_i0047_gg5_ (
+    .A1(_cas_w0044_g_g4_),
+    .A2(_cas_w0024_xk_),
+    .ZN(_cas_w0046_g_g5_)
+  );
+  AND2_X1 _cas_i0049_gg6_ (
+    .A1(_cas_w0046_g_g5_),
+    .A2(_cas_w0026_xk_),
+    .ZN(_cas_w0048_g_g6_)
+  );
+  AND2_X1 _cas_i0051_gg7_ (
+    .A1(_cas_w0048_g_g6_),
+    .A2(_cas_w0028_xk_),
+    .ZN(_cas_w0050_g_g7_)
+  );
+  AND2_X1 _cas_i0053_gg8_ (
+    .A1(_cas_w0050_g_g7_),
+    .A2(_cas_w0030_xk_),
+    .ZN(_cas_w0052_g_g8_)
+  );
+  AND2_X1 _cas_i0055_gg9_ (
+    .A1(_cas_w0052_g_g8_),
+    .A2(_cas_w0032_xk_),
+    .ZN(_cas_w0054_g_g9_)
+  );
+  AND2_X1 _cas_i0057_gg10_ (
+    .A1(_cas_w0054_g_g9_),
+    .A2(_cas_w0034_xk_),
+    .ZN(_cas_w0056_g_g10_)
+  );
+  INV_X1 _cas_i0059_unmask12_ (
+    .A(keyinput12),
+    .ZN(_cas_w0058_unmask12_)
+  );
+  INV_X1 _cas_i0061_unmask14_ (
+    .A(keyinput14),
+    .ZN(_cas_w0060_unmask14_)
+  );
+  INV_X1 _cas_i0063_unmask16_ (
+    .A(keyinput16),
+    .ZN(_cas_w0062_unmask16_)
+  );
+  INV_X1 _cas_i0065_unmask17_ (
+    .A(keyinput17),
+    .ZN(_cas_w0064_unmask17_)
+  );
+  INV_X1 _cas_i0067_unmask22_ (
+    .A(keyinput22),
+    .ZN(_cas_w0066_unmask22_)
+  );
+  XOR2_X1 _cas_i0069_xor_ (
+    .A(P1_IR_REG_24__SCAN_IN),
+    .B(_cas_w0058_unmask12_),
+    .Z(_cas_w0068_xk_)
+  );
+  XOR2_X1 _cas_i0071_xor_ (
+    .A(SI_7_),
+    .B(keyinput13),
+    .Z(_cas_w0070_xk_)
+  );
+  XOR2_X1 _cas_i0073_xor_ (
+    .A(P1_DATAO_REG_11__SCAN_IN),
+    .B(_cas_w0060_unmask14_),
+    .Z(_cas_w0072_xk_)
+  );
+  XOR2_X1 _cas_i0075_xor_ (
+    .A(P1_ADDR_REG_19__SCAN_IN),
+    .B(keyinput15),
+    .Z(_cas_w0074_xk_)
+  );
+  XOR2_X1 _cas_i0077_xor_ (
+    .A(P1_REG2_REG_10__SCAN_IN),
+    .B(_cas_w0062_unmask16_),
+    .Z(_cas_w0076_xk_)
+  );
+  XOR2_X1 _cas_i0079_xor_ (
+    .A(P1_D_REG_20__SCAN_IN),
+    .B(_cas_w0064_unmask17_),
+    .Z(_cas_w0078_xk_)
+  );
+  XOR2_X1 _cas_i0081_xor_ (
+    .A(P1_IR_REG_14__SCAN_IN),
+    .B(keyinput18),
+    .Z(_cas_w0080_xk_)
+  );
+  XOR2_X1 _cas_i0083_xor_ (
+    .A(P2_DATAO_REG_7__SCAN_IN),
+    .B(keyinput19),
+    .Z(_cas_w0082_xk_)
+  );
+  XOR2_X1 _cas_i0085_xor_ (
+    .A(P2_REG1_REG_1__SCAN_IN),
+    .B(keyinput20),
+    .Z(_cas_w0084_xk_)
+  );
+  XOR2_X1 _cas_i0087_xor_ (
+    .A(SI_0_),
     .B(keyinput21),
-    .Z(_cas_w0062_xk_)
+    .Z(_cas_w0086_xk_)
   );
-  INV_X1 _cas_i0065_gb_preinv_ (
-    .A(_cas_w0042_xk_),
-    .ZN(_cas_w0064_gb_preinv_)
+  XOR2_X1 _cas_i0089_xor_ (
+    .A(SI_2_),
+    .B(_cas_w0066_unmask22_),
+    .Z(_cas_w0088_xk_)
   );
-  INV_X1 _cas_i0067_gb_preinv_ (
-    .A(_cas_w0044_xk_),
-    .ZN(_cas_w0066_gb_preinv_)
+  XOR2_X1 _cas_i0091_xor_ (
+    .A(P1_IR_REG_5__SCAN_IN),
+    .B(keyinput23),
+    .Z(_cas_w0090_xk_)
   );
-  INV_X1 _cas_i0069_gb_preinv_ (
-    .A(_cas_w0046_xk_),
-    .ZN(_cas_w0068_gb_preinv_)
+  AND2_X1 _cas_i0093_gbg0_ (
+    .A1(_cas_w0068_xk_),
+    .A2(_cas_w0070_xk_),
+    .ZN(_cas_w0092_gb_g0_)
   );
-  INV_X1 _cas_i0071_gb_preinv_ (
-    .A(_cas_w0048_xk_),
-    .ZN(_cas_w0070_gb_preinv_)
+  AND2_X1 _cas_i0095_gbg1_ (
+    .A1(_cas_w0092_gb_g0_),
+    .A2(_cas_w0072_xk_),
+    .ZN(_cas_w0094_gb_g1_)
   );
-  INV_X1 _cas_i0073_gb_preinv_ (
-    .A(_cas_w0050_xk_),
-    .ZN(_cas_w0072_gb_preinv_)
+  AND2_X1 _cas_i0097_gbg2_ (
+    .A1(_cas_w0094_gb_g1_),
+    .A2(_cas_w0074_xk_),
+    .ZN(_cas_w0096_gb_g2_)
   );
-  INV_X1 _cas_i0075_gb_preinv_ (
-    .A(_cas_w0052_xk_),
-    .ZN(_cas_w0074_gb_preinv_)
+  AND2_X1 _cas_i0099_gbg3_ (
+    .A1(_cas_w0096_gb_g2_),
+    .A2(_cas_w0076_xk_),
+    .ZN(_cas_w0098_gb_g3_)
   );
-  INV_X1 _cas_i0077_gb_preinv_ (
-    .A(_cas_w0054_xk_),
-    .ZN(_cas_w0076_gb_preinv_)
+  AND2_X1 _cas_i0101_gbg4_ (
+    .A1(_cas_w0098_gb_g3_),
+    .A2(_cas_w0078_xk_),
+    .ZN(_cas_w0100_gb_g4_)
   );
-  INV_X1 _cas_i0079_gb_preinv_ (
-    .A(_cas_w0056_xk_),
-    .ZN(_cas_w0078_gb_preinv_)
+  AND2_X1 _cas_i0103_gbg5_ (
+    .A1(_cas_w0100_gb_g4_),
+    .A2(_cas_w0080_xk_),
+    .ZN(_cas_w0102_gb_g5_)
   );
-  INV_X1 _cas_i0081_gb_preinv_ (
-    .A(_cas_w0058_xk_),
-    .ZN(_cas_w0080_gb_preinv_)
+  AND2_X1 _cas_i0105_gbg6_ (
+    .A1(_cas_w0102_gb_g5_),
+    .A2(_cas_w0082_xk_),
+    .ZN(_cas_w0104_gb_g6_)
   );
-  INV_X1 _cas_i0083_gb_preinv_ (
-    .A(_cas_w0060_xk_),
-    .ZN(_cas_w0082_gb_preinv_)
+  AND2_X1 _cas_i0107_gbg7_ (
+    .A1(_cas_w0104_gb_g6_),
+    .A2(_cas_w0084_xk_),
+    .ZN(_cas_w0106_gb_g7_)
   );
-  INV_X1 _cas_i0085_gb_preinv_ (
-    .A(_cas_w0062_xk_),
-    .ZN(_cas_w0084_gb_preinv_)
+  AND2_X1 _cas_i0109_gbg8_ (
+    .A1(_cas_w0106_gb_g7_),
+    .A2(_cas_w0086_xk_),
+    .ZN(_cas_w0108_gb_g8_)
   );
-  AND2_X1 _cas_i0087_gbg0_ (
-    .A1(_cas_w0064_gb_preinv_),
-    .A2(_cas_w0066_gb_preinv_),
-    .ZN(_cas_w0086_gb_g0_)
+  AND2_X1 _cas_i0111_gbg9_ (
+    .A1(_cas_w0108_gb_g8_),
+    .A2(_cas_w0088_xk_),
+    .ZN(_cas_w0110_gb_g9_)
   );
-  AND2_X1 _cas_i0089_gbg1_ (
-    .A1(_cas_w0086_gb_g0_),
-    .A2(_cas_w0068_gb_preinv_),
-    .ZN(_cas_w0088_gb_g1_)
+  AND2_X1 _cas_i0113_gbg10_ (
+    .A1(_cas_w0110_gb_g9_),
+    .A2(_cas_w0090_xk_),
+    .ZN(_cas_w0112_gb_g10_)
   );
-  AND2_X1 _cas_i0091_gbg2_ (
-    .A1(_cas_w0088_gb_g1_),
-    .A2(_cas_w0070_gb_preinv_),
-    .ZN(_cas_w0090_gb_g2_)
+  INV_X1 _cas_i0115_gb_inv_ (
+    .A(_cas_w0112_gb_g10_),
+    .ZN(_cas_w0114_gb_inv_)
   );
-  AND2_X1 _cas_i0093_gbg3_ (
-    .A1(_cas_w0090_gb_g2_),
-    .A2(_cas_w0072_gb_preinv_),
-    .ZN(_cas_w0092_gb_g3_)
-  );
-  AND2_X1 _cas_i0095_gbg4_ (
-    .A1(_cas_w0092_gb_g3_),
-    .A2(_cas_w0074_gb_preinv_),
-    .ZN(_cas_w0094_gb_g4_)
-  );
-  AND2_X1 _cas_i0097_gbg5_ (
-    .A1(_cas_w0094_gb_g4_),
-    .A2(_cas_w0076_gb_preinv_),
-    .ZN(_cas_w0096_gb_g5_)
-  );
-  AND2_X1 _cas_i0099_gbg6_ (
-    .A1(_cas_w0096_gb_g5_),
-    .A2(_cas_w0078_gb_preinv_),
-    .ZN(_cas_w0098_gb_g6_)
-  );
-  AND2_X1 _cas_i0101_gbg7_ (
-    .A1(_cas_w0098_gb_g6_),
-    .A2(_cas_w0080_gb_preinv_),
-    .ZN(_cas_w0100_gb_g7_)
-  );
-  AND2_X1 _cas_i0103_gbg8_ (
-    .A1(_cas_w0100_gb_g7_),
-    .A2(_cas_w0082_gb_preinv_),
-    .ZN(_cas_w0102_gb_g8_)
-  );
-  OR2_X1 _cas_i0105_gbg9_ (
-    .A1(_cas_w0102_gb_g8_),
-    .A2(_cas_w0084_gb_preinv_),
-    .ZN(_cas_w0104_gb_g9_)
-  );
-  INV_X1 _cas_i0107_gb_inv_ (
-    .A(_cas_w0104_gb_g9_),
-    .ZN(_cas_w0106_gb_inv_)
-  );
-  AND2_X1 _cas_i0109_andY_ (
-    .A1(_cas_w0040_g_g9_),
-    .A2(_cas_w0106_gb_inv_),
-    .ZN(_cas_w0108_Y_)
+  AND2_X1 _cas_i0117_andY_ (
+    .A1(_cas_w0056_g_g10_),
+    .A2(_cas_w0114_gb_inv_),
+    .ZN(_cas_w0116_Y_)
   );
 
 endmodule
