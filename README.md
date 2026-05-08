@@ -58,3 +58,27 @@ this will return a file called best_locked_netlist.bench you can then run this c
 ```
 if you are using a file other than the c432 example you will need your files original .bench 
 file and you should replace c432.bench with that file
+
+### How to use AutoLock on a RTL Verilog file
+if you are testing with the c432 file that is already in the directory run this command:
+```bash
+python3 RTL_AutoLock.py c432.v
+```
+if you to test a different file just replace the c432.v with your verilog file
+
+the script should print some output for a while and a message letting you knwo when it is done, you now have a locked RTL file that should be named best_locked_verilog.v
+
+if you would like to test your file against a SAT attack you will need to turn your locked file into a .bench file, to do that with the c432 example run this command next:
+```bash
+yosys synthesis_basic_gates.ys
+```
+this will synthesize your locked RTL file, however this line will only work with the c432 example if you are testing your own file you will need to nano into synthesis_basic_gates.ys and change the top module name to match your files
+after that you should be able to run this command to convert your synthesized RTL file into a .bench file
+```bash
+python3 locked_verilog_to_bench.py --input locked_verilog_basic_gates_syn.v --output locked_verilog_basic_gates_syn.bench
+```
+this will give you a .bench that you can put into the attack with this command:
+```bash
+./sld locked_verilog_basic_gates_syn.bench c432.bench
+```
+if you are using your own file you will replace c432.bench with your files original .bench
