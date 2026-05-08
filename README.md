@@ -28,24 +28,31 @@ in the AutoLock directory you will find the following
 - sld
 - lcmp
 
-### how to use AutoLock on a netlist file
+### How to edit AutoLock parameters
+if you would like to change any of the parameters(population size, generation count, mutation rate, crossover rate, key length, attack trials, or attack trials final) for AutoLock you can do so by editing the file with nano:
+```bash
+nano Netlist_AutoLock.py
+```
+or 
+```bash
+nano RTL_AutoLock.py
+```
+once you are in the file scroll down to the first section marked "GLOBAL DEFAULT" and edit the values there if you wish
+
+### How to use AutoLock on a netlist file
 if testing with the c432 file that is already in the directory run the this command:
 ```bash
 python3 Netlist_AutoLock.py c432_basic_gates_syn.v
 ```
-if you want to test it with a diffrent file you will need to get a synthesised version of that 
-file in the directory and replace the c432_basic_gates_syn.v with your files name.
+if you want to test it with a different file you will need to get a synthesized version of that file in the directory and replace the c432_basic_gates_syn.v with your files name.
 
-the script should print some output for a while and a message letting you know when it is done,
-you now have a locked netlist that should be named best_locked_netlist.v
+the script should print some output for a while and a message letting you know when it is done, you now have a locked netlist that should be named best_locked_netlist.v
 
-if you would like to test your file against a SAT attack you will need to turn your locked file
-into a .bench file, to do that with the c432 example run this command:
+if you would like to test your file against a SAT attack you will need to turn your locked file into a .bench file, to do that with the c432 example run this command:
 ```bash
 python3 locked_netlist_to_bench.py --input best_locked_netlist.v --output best_locked_netlist.bench
 ```
-this will return a file called best_locked_netlist.bench
-you can then run this command to simulate a SAT attack on it:
+this will return a file called best_locked_netlist.bench you can then run this command to simulate a SAT attack on it:
 ```bash
 ./sld best_locked_netlist.bench c432.bench
 ```
