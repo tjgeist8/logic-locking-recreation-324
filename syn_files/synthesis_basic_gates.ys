@@ -1,0 +1,44 @@
+# 1. Read Verilog file
+read_verilog b01.v
+
+# 2. Run generic synthesis pass
+synth -top b01
+
+# 3. Map Flip-Flops
+# Yosys will naturally pick the standard DFF_X1/DFF_X2 for basic registers.
+dfflibmap -liberty NangateOpenCellLibrary_typical.lib
+
+# 4. Map the combinational logic (The "Blacklist" Approach)
+# We exclude all AOI, OAI, Adders, Muxes, and Clock/Special cells.
+# This forces ABC to use only AND, NAND, OR, NOR, XOR, XNOR, BUF, and INV.
+abc -liberty NangateOpenCellLibrary_typical.lib \
+    -dont_use AOI21_X1 -dont_use AOI21_X2 -dont_use AOI21_X4 \
+    -dont_use AOI22_X1 -dont_use AOI22_X2 -dont_use AOI22_X4 \
+    -dont_use AOI211_X1 -dont_use AOI211_X2 -dont_use AOI211_X4 \
+    -dont_use AOI221_X1 -dont_use AOI221_X2 -dont_use AOI221_X4 \
+    -dont_use AOI222_X1 -dont_use AOI222_X2 -dont_use AOI222_X4 \
+    -dont_use OAI21_X1 -dont_use OAI21_X2 -dont_use OAI21_X4 \
+    -dont_use OAI22_X1 -dont_use OAI22_X2 -dont_use OAI22_X4 \
+    -dont_use OAI33_X1 \
+    -dont_use OAI211_X1 -dont_use OAI211_X2 -dont_use OAI211_X4 \
+    -dont_use OAI221_X1 -dont_use OAI221_X2 -dont_use OAI221_X4 \
+    -dont_use OAI222_X1 -dont_use OAI222_X2 -dont_use OAI222_X4 \
+    -dont_use FA_X1 -dont_use HA_X1 \
+    -dont_use MUX2_X1 -dont_use MUX2_X2 \
+    -dont_use DLH_X1 -dont_use DLH_X2 -dont_use DLL_X1 -dont_use DLL_X2 \
+    -dont_use TLAT_X1 -dont_use TBUF_X1 -dont_use TBUF_X2 -dont_use TBUF_X4 -dont_use TBUF_X8 -dont_use TBUF_X16 \
+    -dont_use TINV_X1 \
+    -dont_use CLKBUF_X1 -dont_use CLKBUF_X2 -dont_use CLKBUF_X3 \
+    -dont_use CLKGATE_X1 -dont_use CLKGATE_X2 -dont_use CLKGATE_X4 -dont_use CLKGATE_X8 \
+    -dont_use CLKGATETST_X1 -dont_use CLKGATETST_X2 -dont_use CLKGATETST_X4 -dont_use CLKGATETST_X8 \
+    -dont_use ANTENNA_X1 -dont_use LOGIC0_X1 -dont_use LOGIC1_X1 \
+    -dont_use FILLCELL_X1 -dont_use FILLCELL_X2 -dont_use FILLCELL_X4 -dont_use FILLCELL_X8 -dont_use FILLCELL_X16 -dont_use FILLCELL_X32
+
+# 5. Clean up unused wires
+clean
+
+# 6. Print the gate count and area 
+stat -liberty NangateOpenCellLibrary_typical.lib
+
+# 7. Write out Gate-Level Netlist
+write_verilog -noexpr -noattr b01_basic_gates_syn.v
