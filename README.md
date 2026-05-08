@@ -8,7 +8,7 @@
 - yosys 0.64
 - Matplotlib 3.10.9 (optional, AutoLock can use it)
 
-### to clone environment use these commands
+### To clone environment use these commands
 ```bash
 conda env create -f environment.yml
 conda activate logic_design
