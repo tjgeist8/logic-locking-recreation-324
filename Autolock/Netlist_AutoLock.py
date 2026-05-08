@@ -1,7 +1,8 @@
 """
 AutoLock — Logic Locking via Genetic Algorithm
+
 Usage:
-    python autolock_sim_fixed.py [verilog_file]
+    python3 Netlist_AutoLock_new.py [verilog_file]
 
 If no file is provided, a built-in sample netlist is used.
 """
@@ -10,13 +11,8 @@ import random
 import copy
 import sys
 import re
+import argparse
 from collections import defaultdict
-
-try:
-    import networkx as nx
-    HAS_NETWORKX = True
-except ImportError:
-    HAS_NETWORKX = False
 
 try:
     import matplotlib.pyplot as plt
@@ -25,15 +21,15 @@ except ImportError:
     HAS_MATPLOTLIB = False
 
 
-# ─────────────────────────────────────────────
-# GLOBAL CONFIGURATION
-# ─────────────────────────────────────────────
+#------------------------------------------------
+# GLOBAL DEFAULTS
+#------------------------------------------------
 
 POPULATION_SIZE  = 10
 NUM_GENERATIONS  = 50
 MUTATION_RATE    = 0.15
 CROSSOVER_RATE   = 0.7
-KEY_LENGTH       = 32
+KEY_LENGTH       = 128
 
 _ATTACK_TRIALS_GA    = 5
 _ATTACK_TRIALS_FINAL = 30
@@ -81,19 +77,29 @@ endmodule
 """
 
 
-# ─────────────────────────────────────────────
+#----------------------------------------------
 # HELPERS
-# ─────────────────────────────────────────────
+#----------------------------------------------
 
 def is_constant(signal: str) -> bool:
     return bool(CONSTANT_RE.fullmatch(signal.strip()))
 
 
-# ─────────────────────────────────────────────
+def strip_comments(text: str) -> str:
+    """Remove // line comments and /* */ block comments."""
+    text = re.sub(r'//[^\n]*', '', text)
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    return text
+
+
+#--------------------------------------------
 # 1. VERILOG PARSER
-# ─────────────────────────────────────────────
+#--------------------------------------------
 
 def parse_verilog(source: str) -> dict:
+    """Parse gate-instantiation Verilog netlists."""
+
+    src = strip_comments(source)
 
     netlist = {
         'module': '',
@@ -103,18 +109,20 @@ def parse_verilog(source: str) -> dict:
         'gates': [],
     }
 
-    m = re.search(r'\bmodule\s+(\w+)', source)
+    m = re.search(r'\bmodule\s+(\w+)', src)
     if m:
         netlist['module'] = m.group(1)
 
+    # Handle both 'input wire' and 'input reg' port declarations
     port_pattern = re.compile(
         r'\b(input|output)\b\s+'
         r'(?:wire\s+)?'
+        r'(?:reg\s+)?'
         r'(?:\[(\d+):(\d+)\]\s+)?'
         r'([\w\s,]+);'
     )
 
-    for direction, hi, lo, nets in port_pattern.findall(source):
+    for direction, hi, lo, nets in port_pattern.findall(src):
         names = [n.strip() for n in nets.split(',') if n.strip()]
 
         if hi != '' and lo != '':
@@ -126,14 +134,16 @@ def parse_verilog(source: str) -> dict:
         else:
             netlist[direction + 's'].extend(names)
 
-    for net in re.findall(r'\bwire\b\s+([\w\s,]+);', source):
+    # Scalar wires
+    for net in re.findall(r'\bwire\b\s+([\w\s,]+);', src):
         if '[' in net:
             continue
         names = [n.strip() for n in net.split(',') if n.strip()]
         netlist['wires'].extend(names)
 
+    # Bus wires
     for match in re.finditer(
-        r'\bwire\b\s*\[(\d+):(\d+)\]\s+([\w]+)\s*;', source
+        r'\bwire\b\s*\[(\d+):(\d+)\]\s+([\w]+)\s*;', src
     ):
         hi, lo, base = int(match.group(1)), int(match.group(2)), match.group(3)
         for i in range(lo, hi + 1):
@@ -152,7 +162,7 @@ def parse_verilog(source: str) -> dict:
         'integer', 'genvar', 'generate', 'endgenerate',
     }
 
-    for gtype, gname, port_body in gate_pattern.findall(source):
+    for gtype, gname, port_body in gate_pattern.findall(src):
         if gtype.lower() in SKIP_KEYWORDS:
             continue
         if gname.lower() in SKIP_KEYWORDS:
@@ -174,9 +184,9 @@ def parse_verilog(source: str) -> dict:
     return netlist
 
 
-# ─────────────────────────────────────────────
+#-----------------------------------------------
 # 2. DRIVER TABLE
-# ─────────────────────────────────────────────
+#-----------------------------------------------
 
 def build_driver_table(netlist: dict):
     drivers = {}
@@ -187,9 +197,9 @@ def build_driver_table(netlist: dict):
     return drivers
 
 
-# ─────────────────────────────────────────────
+#-------------------------------------------
 # 3. CIRCUIT GRAPH
-# ─────────────────────────────────────────────
+#-------------------------------------------
 
 def build_graph(netlist: dict):
 
@@ -224,9 +234,26 @@ def build_graph(netlist: dict):
 
     return dict(graph), list(all_nets)
 
-#------------------------------------------------
-# decendent helper
-#------------------------------------------------
+
+# ---------------------------------------------
+# 4. GATE I/O HELPERS
+# ---------------------------------------------
+
+def _get_gate_io_keys(gate: dict):
+    """Return (output_port_keys, input_port_keys) — key names, not net values."""
+    ports = gate['ports']
+    out_keys = [p for p in ports if p in OUTPUT_PORTS]
+    in_keys  = [p for p in ports if p not in OUTPUT_PORTS and p not in CLOCK_PORTS]
+    if not out_keys and ports:
+        pl = list(ports.keys())
+        out_keys = [pl[-1]]
+        in_keys  = pl[:-1]
+    return out_keys, in_keys
+
+
+# ---------------------------------------------
+# 5. DESCENDANT CHECK
+# ---------------------------------------------
 
 def is_descendant(graph, start_node, target_node):
     """Checks if target_node is downstream from start_node."""
@@ -248,17 +275,19 @@ def is_descendant(graph, start_node, target_node):
     return False
 
 
-# ─────────────────────────────────────────────
-# 4. INITIAL POPULATION
-# ─────────────────────────────────────────────
+# ---------------------------------------------
+# 6. INITIAL POPULATION
+# ---------------------------------------------
 
-def generate_initial_population(netlist,graph, nodes, key_length, pop_size):
+def generate_initial_population(netlist, graph, nodes, key_length, pop_size):
 
     candidates = []
 
     for gi, gate in enumerate(netlist['gates']):
-        for port, signal in gate['ports'].items():
-            if port in OUTPUT_PORTS:
+        _, in_keys = _get_gate_io_keys(gate)
+        for port in in_keys:
+            signal = gate['ports'].get(port, '')
+            if not signal:
                 continue
             if port in CLOCK_PORTS:
                 continue
@@ -273,19 +302,32 @@ def generate_initial_population(netlist,graph, nodes, key_length, pop_size):
     if not candidates:
         raise RuntimeError("No valid locking candidates found.")
 
+    # Clamp key_length to available candidates to avoid sampling errors
+    actual_key_length = min(key_length, len(candidates))
+    if actual_key_length < key_length:
+        print(
+            f"  Warning: only {len(candidates)} candidate locking points found; "
+            f"key length clamped from {key_length} to {actual_key_length}."
+        )
+
     population = []
 
     for _ in range(pop_size):
         individual = []
 
-        for _ in range(key_length):
-            gi, port, signal = random.choice(candidates)
+        # Sample WITHOUT replacement so each locking point is unique per individual
+        chosen_points = random.sample(candidates, actual_key_length)
 
+        for gi, port, signal in chosen_points:
             fake_signal = random.choice(nodes)
-            while (fake_signal == signal or 
-                    is_constant(fake_signal) or 
-                    is_descendant(graph, signal, fake_signal)):
+            attempts = 0
+            while (fake_signal == signal or
+                   is_constant(fake_signal) or
+                   is_descendant(graph, signal, fake_signal)):
                 fake_signal = random.choice(nodes)
+                attempts += 1
+                if attempts > 100:  # Failsafe for sparse graphs
+                    break
 
             key_bit = random.randint(0, 1)
             individual.append((gi, port, signal, fake_signal, key_bit))
@@ -295,9 +337,9 @@ def generate_initial_population(netlist,graph, nodes, key_length, pop_size):
     return population
 
 
-# ─────────────────────────────────────────────
-# 5. APPLY LOCKING
-# ─────────────────────────────────────────────
+# ---------------------------------------------
+# 7. APPLY LOCKING
+# ---------------------------------------------
 
 def apply_locking(netlist: dict, individual: list):
 
@@ -313,7 +355,7 @@ def apply_locking(netlist: dict, individual: list):
         gate = locked['gates'][gi]
         gate['ports'][port] = mux_out
 
-        # FIX: Wire the true signal to the port matching key_bit
+        # Wire the true signal to the port matching key_bit
         if key_bit == 1:
             in1_val = signal
             in0_val = fake_signal
@@ -335,9 +377,9 @@ def apply_locking(netlist: dict, individual: list):
     return locked
 
 
-# ─────────────────────────────────────────────
-# 6. ATTACK MODEL  (FIXED)
-# ─────────────────────────────────────────────
+# ---------------------------------------------
+# 8. ATTACK MODEL
+# ---------------------------------------------
 
 def simulate_attack_once(individual, graph, nodes):
     """
@@ -355,13 +397,6 @@ def simulate_attack_once(individual, graph, nodes):
       - Gaussian noise is added to model imperfect structural analysis.
 
     Returns the fraction of key bits guessed correctly.
-
-    BUG FIXES vs original:
-      - sim_real previously compared degree(signal) to degree(signal)
-        (always 0 difference → always 1.0). Now compares signal to
-        fake_signal so the score actually varies.
-      - dist_real previously called bfs_distance(signal, signal)
-        (always 0). Now calls bfs_distance(signal, fake_signal).
     """
 
     if not nodes:
@@ -404,28 +439,16 @@ def simulate_attack_once(individual, graph, nodes):
 
     for (gi, port, signal, fake_signal, key_bit) in individual:
 
-        # ── Distance between the two candidate nets ──────────────────────
-        # FIX: was bfs_distance(signal, signal) → always 0.
-        #      Now measures how far apart the real and fake wires are.
-        dist_s_to_f = bfs_distance(signal, fake_signal)  # real → fake
-        dist_f_to_s = dist_s_to_f                        # symmetric (undirected BFS)
+        dist = bfs_distance(signal, fake_signal)
 
-        # ── Structural plausibility scores ───────────────────────────────
-        # A high-degree wire that is close to its counterpart looks more
-        # "real" to the attacker (it's well-connected, not a random outlier).
-        #
-        # FIX: sim_real previously computed degree(signal)-degree(signal)=0,
-        #      making score_real always 1.0.  Now we use the raw degree so
-        #      both candidates are evaluated on their own merit.
-        score_signal = degree(signal)     / (1.0 + dist_s_to_f * 0.1)
-        score_fake   = degree(fake_signal)/ (1.0 + dist_f_to_s * 0.1)
+        score_signal = degree(signal)      / (1.0 + dist * 0.1)
+        score_fake   = degree(fake_signal) / (1.0 + dist * 0.1)
 
         # Small noise models imperfect attacker reasoning
         noise = random.gauss(0, 0.05)
 
         # Attacker picks the higher-scoring wire as the "real" one.
         # key_bit=1 means signal is on in1 (activated when key=1).
-        # If attacker thinks `signal` is real → they guess key_bit=1.
         attacker_guess = 1 if (score_signal + noise) >= score_fake else 0
 
         if attacker_guess == key_bit:
@@ -453,9 +476,9 @@ def compute_fitness(individual, graph, nodes, n_trials=_ATTACK_TRIALS_GA):
     return 1.0 - simulate_attack(individual, graph, nodes, n_trials)
 
 
-# ─────────────────────────────────────────────
-# 7. SELECTION
-# ─────────────────────────────────────────────
+# ---------------------------------------------
+# 9. SELECTION
+# ---------------------------------------------
 
 def select_parents(population, fitnesses, n_parents):
     TOURNAMENT_SIZE = 3
@@ -470,9 +493,9 @@ def select_parents(population, fitnesses, n_parents):
     return parents
 
 
-# ─────────────────────────────────────────────
-# 8. CROSSOVER
-# ─────────────────────────────────────────────
+# ------------------------------------------
+# 10. CROSSOVER
+# ------------------------------------------
 
 def crossover(parent_a, parent_b):
     if len(parent_a) <= 1:
@@ -484,11 +507,11 @@ def crossover(parent_a, parent_b):
     return child_a, child_b
 
 
-# ─────────────────────────────────────────────
-# 9. MUTATION
-# ─────────────────────────────────────────────
+# ---------------------------------------
+# 11. MUTATION
+# ---------------------------------------
 
-def mutate(individual, netlist,graph, nodes, mutation_rate):
+def mutate(individual, netlist, graph, nodes, mutation_rate):
     mutated = copy.deepcopy(individual)
 
     for i, (gi, port, signal, fake_signal, key_bit) in enumerate(mutated):
@@ -497,11 +520,16 @@ def mutate(individual, netlist,graph, nodes, mutation_rate):
 
             if choice == 0:
                 # Swap the fake signal for a different random net
-                fake_signal = random.choice(nodes)
-                while (fake_signal == signal or 
-                        is_constant(fake_signal) or 
-                        is_descendant(graph, signal, fake_signal)):
-                    fake_signal = random.choice(nodes)
+                attempts = 0
+                new_fake = random.choice(nodes)
+                while (new_fake == signal or
+                       is_constant(new_fake) or
+                       is_descendant(graph, signal, new_fake)):
+                    new_fake = random.choice(nodes)
+                    attempts += 1
+                    if attempts > 200:  # Failsafe for sparse graphs
+                        break
+                fake_signal = new_fake
             else:
                 # Flip the key bit
                 key_bit ^= 1
@@ -511,30 +539,31 @@ def mutate(individual, netlist,graph, nodes, mutation_rate):
     return mutated
 
 
-# ─────────────────────────────────────────────
-# 10. GENETIC ALGORITHM
-# ─────────────────────────────────────────────
+# ---------------------------------------------
+# 12. GENETIC ALGORITHM
+# ---------------------------------------------
 
-def run_genetic_algorithm(netlist, graph, nodes):
+def run_genetic_algorithm(netlist, graph, nodes, pop_size, num_gen, key_len,
+                           mutation_rate, crossover_rate):
 
-    print(f"\n{'='*55}")
+    print(f"\n{'='*60}")
     print(
         f"  AutoLock GA  |  "
-        f"Pop={POPULATION_SIZE}  "
-        f"Gen={NUM_GENERATIONS}  "
-        f"Key={KEY_LENGTH}"
+        f"Pop={pop_size}  "
+        f"Gen={num_gen}  "
+        f"Key={key_len}"
     )
-    print(f"{'='*55}\n")
+    print(f"{'='*60}\n")
 
     population = generate_initial_population(
-        netlist,graph, nodes, KEY_LENGTH, POPULATION_SIZE
+        netlist, graph, nodes, key_len, pop_size
     )
 
-    history          = []
-    best_individual  = None
+    history           = []
+    best_individual   = None
     best_fitness_seen = -1.0
 
-    for gen in range(NUM_GENERATIONS):
+    for gen in range(num_gen):
 
         fitnesses = [compute_fitness(ind, graph, nodes) for ind in population]
 
@@ -550,30 +579,30 @@ def run_genetic_algorithm(netlist, graph, nodes):
 
         if (gen + 1) % 10 == 0 or gen == 0:
             print(
-                f"Gen {gen+1:>3}/{NUM_GENERATIONS} | "
+                f"Gen {gen+1:>3}/{num_gen} | "
                 f"Best: {gen_best:.4f} | "
                 f"Avg: {gen_avg:.4f}"
             )
 
-        parents = select_parents(population, fitnesses, POPULATION_SIZE)
+        parents = select_parents(population, fitnesses, pop_size)
 
         # Elitism: carry forward the best individual unchanged
         new_population = [copy.deepcopy(population[best_idx])]
 
-        while len(new_population) < POPULATION_SIZE:
+        while len(new_population) < pop_size:
             pa, pb = random.sample(parents, 2)
 
-            if random.random() < CROSSOVER_RATE:
+            if random.random() < crossover_rate:
                 child_a, child_b = crossover(pa, pb)
             else:
                 child_a = copy.deepcopy(pa)
                 child_b = copy.deepcopy(pb)
 
-            child_a = mutate(child_a, netlist,graph, nodes, MUTATION_RATE)
-            child_b = mutate(child_b, netlist,graph, nodes, MUTATION_RATE)
+            child_a = mutate(child_a, netlist, graph, nodes, mutation_rate)
+            child_b = mutate(child_b, netlist, graph, nodes, mutation_rate)
 
             new_population.append(child_a)
-            if len(new_population) < POPULATION_SIZE:
+            if len(new_population) < pop_size:
                 new_population.append(child_b)
 
         population = new_population
@@ -587,9 +616,9 @@ def run_genetic_algorithm(netlist, graph, nodes):
     return best_individual, best_fitness_final, history
 
 
-# ─────────────────────────────────────────────
-# 11. VERILOG OUTPUT
-# ─────────────────────────────────────────────
+#------------------------------------------
+# 13. VERILOG OUTPUT
+#------------------------------------------
 
 def format_locked_verilog(netlist, locked):
 
@@ -598,7 +627,7 @@ def format_locked_verilog(netlist, locked):
     key   = locked.get('key', [])
     lps   = locked.get('locking_points', [])
 
-    lines.append("// AutoLock-generated locked netlist")
+    lines.append("// AutoLock-generated locked netlist (gate-instantiation mode)")
     lines.append(f"// Correct key: {key}")
     lines.append(f"module {mod}_locked (")
     lines.append(f"    input wire [{len(key)-1}:0] key,")
@@ -617,7 +646,10 @@ def format_locked_verilog(netlist, locked):
     ]))
 
     if wire_list:
-        lines.append("    wire " + ", ".join(wire_list) + ";")
+        # Chunk wire declarations into groups of 8 for readability
+        for i in range(0, len(wire_list), 8):
+            chunk = wire_list[i:i+8]
+            lines.append("    wire " + ", ".join(chunk) + ";")
         lines.append("")
 
     lines.append("    // Original gates")
@@ -642,22 +674,21 @@ def format_locked_verilog(netlist, locked):
     return "\n".join(lines)
 
 
-# ─────────────────────────────────────────────
-# 12. RESULTS
-# ─────────────────────────────────────────────
+# -------------------------------------------
+# 14. RESULTS
+# -------------------------------------------
 
-def print_results(netlist, best_individual, best_fitness, history):
+def print_results(netlist, best_individual, best_fitness):
 
     locked     = apply_locking(netlist, best_individual)
     key        = locked['key']
     attack_acc = 1.0 - best_fitness
 
-    print(f"\n{'='*55}")
+    print(f"\n{'='*60}")
     print("RESULTS")
-    print(f"{'='*55}")
+    print(f"{'='*60}")
     print(f"Best Fitness    : {best_fitness:.4f}")
-    print(f"Attack Accuracy : {attack_acc:.4f}")
-    print(f"  (random-chance baseline = 0.5000)")
+    print(f"Attack Accuracy : {attack_acc:.4f}  (random baseline = 0.5000)")
     print(f"Key Length      : {len(key)} bits")
     print(f"Correct Key     : {''.join(str(b) for b in key)}")
     print()
@@ -666,16 +697,19 @@ def print_results(netlist, best_individual, best_fitness, history):
     return verilog_out, key
 
 
-def save_outputs(verilog_out, key, history):
+def save_outputs(verilog_out, key, history, base_name="best"):
 
-    with open("best_locked_netlist.v", "w") as f:
+    v_file = f"{base_name}_locked_netlist.v"
+    k_file = f"{base_name}_netlist_key.txt"
+
+    with open(v_file, "w") as f:
         f.write(verilog_out)
-    print("\nSaved: best_locked_netlist.v")
+    print(f"Saved: {v_file}")
 
-    with open("best_netlist_key.txt", "w") as f:
+    with open(k_file, "w") as f:
         f.write("Correct key (binary): " + ''.join(str(b) for b in key) + "\n")
         f.write("Key bits: " + str(key) + "\n")
-    print("Saved: best_netlist_key.txt")
+    print(f"Saved: {k_file}")
 
     if HAS_MATPLOTLIB and history:
         gens  = range(1, len(history) + 1)
@@ -691,32 +725,46 @@ def save_outputs(verilog_out, key, history):
         plt.title('AutoLock GA Fitness')
         plt.legend()
         plt.tight_layout()
-        plt.savefig("netlist_fitness_history.png", dpi=120)
+        plt.savefig(f"{base_name}_netlist_fitness_history.png", dpi=120)
         plt.close()
-        print("Saved: netlist_fitness_history.png")
+        print(f"Saved: {base_name}_netlist_fitness_history.png")
 
 
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 # MAIN
-# ─────────────────────────────────────────────
+# ---------------------------------------------
 
 def main():
 
-    if len(sys.argv) > 1:
-        verilog_file = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description='AutoLock — Logic Locking via GA (Netlist Mode)'
+    )
+    parser.add_argument('verilog_file',  nargs='?',    help='Input Verilog netlist file')
+    parser.add_argument('--pop-size',    type=int,     default=POPULATION_SIZE,  help='GA population size')
+    parser.add_argument('--generations', type=int,     default=NUM_GENERATIONS,  help='Number of GA generations')
+    parser.add_argument('--key-length',  type=int,     default=KEY_LENGTH,       help='Key length in bits')
+    parser.add_argument('--mutation',    type=float,   default=MUTATION_RATE,    help='Mutation rate')
+    parser.add_argument('--crossover',   type=float,   default=CROSSOVER_RATE,   help='Crossover rate')
+    parser.add_argument('--output-base', type=str,     default='best',           help='Output file base name')
+    args = parser.parse_args()
+
+    if args.verilog_file:
         try:
-            with open(verilog_file) as f:
+            with open(args.verilog_file) as f:
                 source = f.read()
-            print(f"Loaded Verilog from: {verilog_file}")
+            print(f"Loaded Verilog from: {args.verilog_file}")
+            base_name = args.output_base or args.verilog_file.rsplit('.', 1)[0]
         except FileNotFoundError:
-            print(f"File not found: {verilog_file}")
+            print(f"File not found: {args.verilog_file} — using built-in sample.")
             source = SAMPLE_VERILOG
+            base_name = args.output_base
     else:
         print("No file specified — using built-in sample.")
         source = SAMPLE_VERILOG
+        base_name = args.output_base
 
     netlist = parse_verilog(source)
-    print(f"Gates: {len(netlist['gates'])}")
+    print(f"Gates: {len(netlist['gates'])} | Inputs: {len(netlist['inputs'])} | Outputs: {len(netlist['outputs'])}")
 
     graph, nodes = build_graph(netlist)
 
@@ -726,14 +774,16 @@ def main():
         nodes = [f"n{i}" for i in range(20)]
 
     best_individual, best_fitness, history = run_genetic_algorithm(
-        netlist, graph, nodes
+        netlist, graph, nodes,
+        pop_size=args.pop_size,
+        num_gen=args.generations,
+        key_len=args.key_length,
+        mutation_rate=args.mutation,
+        crossover_rate=args.crossover,
     )
 
-    verilog_out, key = print_results(
-        netlist, best_individual, best_fitness, history
-    )
-
-    save_outputs(verilog_out, key, history)
+    verilog_out, key = print_results(netlist, best_individual, best_fitness)
+    save_outputs(verilog_out, key, history, base_name=base_name)
 
     print(f"\nDone. Final best fitness: {best_fitness:.4f}\n")
 
