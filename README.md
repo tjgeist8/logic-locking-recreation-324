@@ -15,4 +15,11 @@ conda activate logic_design
 ``` 
 
 ## AutoLock 
-in the AutoLock directory you will find the two AutoLock scripts, the NangateOpenCellLibrary, a yosys basic gates synthesis file, and a testfile called c432 in its bench, RTL, and Netlist versions.
+in the AutoLock directory you will find the following
+- Netlist_AutoLock.py
+- RTL_AutoLock.py
+- NangateOpenCellLibrary.lib
+- synthesis_basic_gates.ys
+- c432.bench
+- c432.v
+- c432_basic_gates_syn.v
